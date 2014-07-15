@@ -1,0 +1,145 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+
+    "Description": "Hartl App Parent Template (2014-07-02)",
+
+    "Parameters": {
+        "DatabaseTemplate": {
+            "Description": "The key of the Playlists service's Database template",
+            "Type": "String",
+            "Default": "hartl-rds.cfn.json"
+        },
+        "AppTemplate": {
+            "Description": "The key of the the Playlists service's Elastic Beanstalk template",
+            "Type": "String",
+            "Default": "hartl-elasticbeanstalk.cfn.json"
+        },
+        "ApplicationName": {
+            "Type": "String"
+        },
+        "Environment": {
+            "Type": "String"
+        },
+        "KeyName": {
+            "Type": "String"
+        },
+        "InstanceType": {
+            "Type": "String"
+        },
+        "DBInstanceClass": {
+            "Type": "String"
+        },
+        "IamInstanceProfile": {
+            "Type": "String"
+        },
+        "DatabaseUser": {
+            "Type": "String",
+            "NoEcho": "true"
+        },
+        "DatabasePassword": {
+            "Type": "String",
+            "NoEcho": "true"
+        }
+    },
+
+    "Resources": {
+        "Database": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "http://s3.amazonaws.com/br-templates",
+                            {
+                                "Ref": "ApplicationName"
+                            },
+                            {
+                                "Ref": "DatabaseTemplate"
+                            }
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "ApplicationName": {
+                        "Ref": "ApplicationName"
+                    },
+                    "Environment": {
+                        "Ref": "Environment"
+                    },
+                    "DBInstanceClass": {
+                        "Ref": "DBInstanceClass"
+                    },
+                    "DatabaseUser": {
+                        "Ref": "DatabaseUser"
+                    },
+                    "DatabasePassword": {
+                        "Ref": "DatabasePassword"
+                    }
+                }
+            }
+        },
+        "App" : {
+            "Type" : "AWS::CloudFormation::Stack",
+            "Properties" : {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "http://s3.amazonaws.com/br-templates",
+                            {
+                                "Ref": "ApplicationName"
+                            },
+                            {
+                                "Ref": "AppTemplate"
+                            }
+                        ]
+                    ]
+                },
+                "Parameters" : {
+                    "DatabaseName": {
+                        "Fn::GetAtt" : [ "Database", "Outputs.DatabaseName" ]
+                    },
+                    "DatabaseUser": {
+                        "Ref" : "DatabaseUser"
+                    },
+                    "DatabasePassword": {
+                        "Ref" : "DatabasePassword"
+                    },
+                    "DatabaseHost": {
+                        "Fn::GetAtt" : [ "Database", "Outputs.DatabaseHost" ]
+                    },
+                    "DatabasePort": {
+                        "Fn::GetAtt" : [ "Database", "Outputs.DatabasePort" ]
+                    },
+                    "KeyName": {
+                        "Ref": "KeyName"
+                    },
+                    "InstanceSecurityGroup": {
+                        "Fn::GetAtt": [ "Database", "Outputs.InstanceSecurityGroup" ]
+                    },
+                    "InstanceType": {
+                        "Ref": "InstanceType"
+                    },
+                    "ApplicationName": {
+                        "Ref": "ApplicationName"
+                    },
+                    "Environment": {
+                        "Ref": "Environment"
+                    },
+                    "IamInstanceProfile": {
+                        "Ref": "IamInstanceProfile"
+                    }
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "URL": {
+            "Description": "URL of the AWS Elastic Beanstalk Environment",
+            "Value": {
+                "Fn::GetAtt": ["App", "Outputs.URL"]
+            }
+        }
+    }
+}

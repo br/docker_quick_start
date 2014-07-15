@@ -1,0 +1,635 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+
+    "Description": "Hartl App's RDS (2014-07-02)",
+
+    "Conditions": {
+        "RemoteDBAccess": {
+            "Fn::Not": [
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "RemoteDBAccessSource"
+                        },
+                        "1.1.1.1/1"
+                    ]
+                }
+            ]
+        }
+    },
+
+    "Mappings": {
+        "LongName": {
+            "stag": {
+                "name": "staging"
+            },
+            "prod": {
+                "name": "production"
+            }
+        },
+        "InstanceTypeMap": {
+            "db.m3.medium": {
+                "CPULimit": "60",
+                "FreeStorageSpaceLimit": "1024",
+                "ReadIOPSLimit": "1000",
+                "WriteIOPSLimit": "1000"
+            },
+            "db.m3.large": {
+                "CPULimit": "60",
+                "FreeStorageSpaceLimit": "1024",
+                "ReadIOPSLimit": "1000",
+                "WriteIOPSLimit": "1000"
+            },
+            "db.m3.xlarge": {
+                "CPULimit": "60",
+                "FreeStorageSpaceLimit": "1024",
+                "ReadIOPSLimit": "1000",
+                "WriteIOPSLimit": "1000"
+            },
+            "db.m3.2xlarge": {
+                "CPULimit": "60",
+                "FreeStorageSpaceLimit": "1024",
+                "ReadIOPSLimit": "1000",
+                "WriteIOPSLimit": "1000"
+            },
+            "db.t1.micro": {
+                "CPULimit": "60",
+                "FreeStorageSpaceLimit": "1024",
+                "ReadIOPSLimit": "1000",
+                "WriteIOPSLimit": "1000"
+            }
+        }
+    },
+
+    "Parameters": {
+        "ApplicationName": {
+            "Type": "String",
+            "Default": "hartl"
+        },
+        "Environment": {
+            "Description": "Environment (prod or stag)",
+            "Type": "String",
+            "AllowedValues": [ "prod", "stag" ],
+            "ConstraintDescription": "must specify prod or stag",
+            "Default": "stag"
+        },
+        "DatabaseUser": {
+            "Type": "String",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9_]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters.",
+            "Description": "Database admin account username",
+            "MaxLength": "15",
+            "MinLength": "5",
+            "NoEcho": "true"
+        },
+        "DatabasePassword": {
+            "Type": "String",
+            "AllowedPattern": "[a-zA-Z0-9_]*",
+            "ConstraintDescription": "must contain only alphanumeric characters.",
+            "Description": "Database admin account password",
+            "MaxLength": "40",
+            "MinLength": "10",
+            "NoEcho": "true"
+        },
+        "AlarmTopic": {
+            "Type": "String",
+            "Description": "SNS topic to notify if there are operational issues",
+            "Default": "arn:aws:sns:us-east-1:867690557112:ops"
+        },
+        "DBAllocatedStorage": {
+            "Type": "Number",
+            "ConstraintDescription": "must be between 50 and 3072GB.",
+            "Default": "512",
+            "Description": "Database size (Gb)",
+            "MaxValue": "3072",
+            "MinValue": "50"
+        },
+        "DBInstanceClass": {
+            "Description": "Database instance type",
+            "Type": "String",
+            "ConstraintDescription": "must select a valid database instance type.",
+            "AllowedValues": [
+                "db.t1.micro",
+                "db.m3.medium",
+                "db.m3.large",
+                "db.m3.xlarge",
+                "db.m3.2xlarge"
+            ],
+            "Default": "db.t1.micro"
+        },
+        "RemoteDBAccessSource": {
+            "Description": "CIDR range from which remote database connections will be allows (for local dev)",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "1.1.1.1/1",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid CIDR range of the form x.x.x.x/x."
+        }
+    },
+
+    "Resources": {
+        "InstanceSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "an EC2 instance security group created for ",
+                            {
+                                "Ref": "ApplicationName"
+                            }
+                        ]
+                    ]
+                },
+                "SecurityGroupIngress": []
+            }
+        },
+        "DBSecurityGroup": {
+            "Type": "AWS::RDS::DBSecurityGroup",
+            "Properties": {
+                "DBSecurityGroupIngress": [
+                    {
+                        "EC2SecurityGroupName": {
+                            "Ref": "InstanceSecurityGroup"
+                        }
+                    }
+                ],
+                "GroupDescription": "Database access"
+            }
+        },
+        "DBSecurityGroupRemoteAccess": {
+            "Type": "AWS::RDS::DBSecurityGroupIngress",
+            "Condition": "RemoteDBAccess",
+            "Properties": {
+                "DBSecurityGroupName": {
+                    "Ref": "DBSecurityGroup"
+                },
+                "CIDRIP": {
+                    "Ref": "RemoteDBAccessSource"
+                }
+            }
+        },
+        "DBParameterGroup": {
+            "Type": "AWS::RDS::DBParameterGroup",
+            "Properties": {
+                "Description": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            {
+                                "Ref": "Environment"
+                            },
+                            {
+                                "Ref": "ApplicationName"
+                            },
+                            "psql"
+                        ]
+                    ]
+                },
+                "Family": "postgres9.3",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "-",
+                                [
+                                    {
+                                        "Ref": "Environment"
+                                    },
+                                    {
+                                        "Ref": "ApplicationName"
+                                    },
+                                    "psql"
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "HostRecord": {
+            "Type": "AWS::Route53::RecordSet",
+            "Properties": {
+                "Comment": "DNS name for my stack",
+                "HostedZoneName": "brenv.net.",
+                "Name": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            {
+                                "Ref": "Environment"
+                            },
+                            {
+                                "Ref": "ApplicationName"
+                            },
+                            "rds.brenv.net"
+                        ]
+                    ]
+                },
+                "ResourceRecords": [
+                    {
+                        "Fn::GetAtt": [
+                            "Database",
+                            "Endpoint.Address"
+                        ]
+                    }
+                ],
+                "TTL": "60",
+                "Type": "CNAME"
+            }
+        },
+        "Database": {
+            "Type": "AWS::RDS::DBInstance",
+            "Properties": {
+                "AllocatedStorage": {
+                    "Ref": "DBAllocatedStorage"
+                },
+                "BackupRetentionPeriod": 1,
+                "DBInstanceClass": {
+                    "Ref": "DBInstanceClass"
+                },
+                "DBName": {
+                    "Fn::Join": [
+                        "_",
+                        [
+                            {
+                                "Ref": "Environment"
+                            },
+                            {
+                                "Ref": "ApplicationName"
+                            }
+                        ]
+                    ]
+                },
+                "DBParameterGroupName": {
+                    "Ref": "DBParameterGroup"
+                },
+                "DBSecurityGroups": [
+                    "global",
+                    {
+                        "Ref": "DBSecurityGroup"
+                    }
+                ],
+                "Engine": "postgres",
+                "EngineVersion": "9.3",
+                "MasterUserPassword": {
+                    "Ref": "DatabasePassword"
+                },
+                "MasterUsername": {
+                    "Ref": "DatabaseUser"
+                },
+                "MultiAZ": "false",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "-",
+                                [
+                                    {
+                                        "Ref": "Environment"
+                                    },
+                                    {
+                                        "Ref": "ApplicationName"
+                                    },
+                                    "psql"
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CPUAlarmHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmActions": [
+                    {
+                        "Ref": "AlarmTopic"
+                    }
+                ],
+                "AlarmDescription": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "Alarm if ",
+                            {
+                                "Fn::Join": [
+                                    "_",
+                                    [
+                                        {
+                                            "Ref": "Environment"
+                                        },
+                                        {
+                                            "Ref": "ApplicationName"
+                                        }
+                                    ]
+                                ]
+                            },
+                            " CPU > ",
+                            {
+                                "Fn::FindInMap": [
+                                    "InstanceTypeMap",
+                                    {
+                                        "Ref": "DBInstanceClass"
+                                    },
+                                    "CPULimit"
+                                ]
+                            },
+                            "% for 5 minutes"
+                        ]
+                    ]
+                },
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": {
+                            "Ref": "Database"
+                        }
+                    }
+                ],
+                "EvaluationPeriods": "5",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/RDS",
+                "Period": "60",
+                "Statistic": "Average",
+                "Threshold": {
+                    "Fn::FindInMap": [
+                        "InstanceTypeMap",
+                        {
+                            "Ref": "DBInstanceClass"
+                        },
+                        "CPULimit"
+                    ]
+                }
+            }
+        },
+        "FreeStorageSpace": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmActions": [
+                    {
+                        "Ref": "AlarmTopic"
+                    }
+                ],
+                "AlarmDescription": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "Alarm if ",
+                            {
+                                "Fn::Join": [
+                                    "_",
+                                    [
+                                        {
+                                            "Ref": "Environment"
+                                        },
+                                        {
+                                            "Ref": "ApplicationName"
+                                        }
+                                    ]
+                                ]
+                            },
+                            " storage space <= ",
+                            {
+                                "Fn::FindInMap": [
+                                    "InstanceTypeMap",
+                                    {
+                                        "Ref": "DBInstanceClass"
+                                    },
+                                    "FreeStorageSpaceLimit"
+                                ]
+                            },
+                            " for 5 minutes"
+                        ]
+                    ]
+                },
+                "ComparisonOperator": "LessThanOrEqualToThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": {
+                            "Ref": "Database"
+                        }
+                    }
+                ],
+                "EvaluationPeriods": "5",
+                "MetricName": "FreeStorageSpace",
+                "Namespace": "AWS/RDS",
+                "Period": "60",
+                "Statistic": "Average",
+                "Threshold": {
+                    "Fn::FindInMap": [
+                        "InstanceTypeMap",
+                        {
+                            "Ref": "DBInstanceClass"
+                        },
+                        "FreeStorageSpaceLimit"
+                    ]
+                }
+            }
+        },
+        "ReadIOPSHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmActions": [
+                    {
+                        "Ref": "AlarmTopic"
+                    }
+                ],
+                "AlarmDescription": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "Alarm if ",
+                            {
+                                "Fn::Join": [
+                                    "_",
+                                    [
+                                        {
+                                            "Ref": "Environment"
+                                        },
+                                        {
+                                            "Ref": "ApplicationName"
+                                        }
+                                    ]
+                                ]
+                            },
+                            " WriteIOPs > ",
+                            {
+                                "Fn::FindInMap": [
+                                    "InstanceTypeMap",
+                                    {
+                                        "Ref": "DBInstanceClass"
+                                    },
+                                    "ReadIOPSLimit"
+                                ]
+                            },
+                            " for 5 minutes"
+                        ]
+                    ]
+                },
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": {
+                            "Ref": "Database"
+                        }
+                    }
+                ],
+                "EvaluationPeriods": "5",
+                "MetricName": "ReadIOPS",
+                "Namespace": "AWS/RDS",
+                "Period": "60",
+                "Statistic": "Average",
+                "Threshold": {
+                    "Fn::FindInMap": [
+                        "InstanceTypeMap",
+                        {
+                            "Ref": "DBInstanceClass"
+                        },
+                        "ReadIOPSLimit"
+                    ]
+                }
+            }
+        },
+        "WriteIOPSHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmActions": [
+                    {
+                        "Ref": "AlarmTopic"
+                    }
+                ],
+                "AlarmDescription": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "Alarm if ",
+                            {
+                                "Fn::Join": [
+                                    "_",
+                                    [
+                                        {
+                                            "Ref": "Environment"
+                                        },
+                                        {
+                                            "Ref": "ApplicationName"
+                                        }
+                                    ]
+                                ]
+                            },
+                            " WriteIOPs > ",
+                            {
+                                "Fn::FindInMap": [
+                                    "InstanceTypeMap",
+                                    {
+                                        "Ref": "DBInstanceClass"
+                                    },
+                                    "WriteIOPSLimit"
+                                ]
+                            },
+                            " for 5 minutes"
+                        ]
+                    ]
+                },
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": {
+                            "Ref": "Database"
+                        }
+                    }
+                ],
+                "EvaluationPeriods": "5",
+                "MetricName": "WriteIOPS",
+                "Namespace": "AWS/RDS",
+                "Period": "60",
+                "Statistic": "Average",
+                "Threshold": {
+                    "Fn::FindInMap": [
+                        "InstanceTypeMap",
+                        {
+                            "Ref": "DBInstanceClass"
+                        },
+                        "WriteIOPSLimit"
+                    ]
+                }
+            }
+        }
+    },
+
+    "Outputs": {
+        "InstanceSecurityGroup": {
+            "Value": {
+                "Ref": "InstanceSecurityGroup"
+            }
+        },
+        "DatabaseName": {
+            "Value": {
+                "Fn::Join": [
+                    "_",
+                    [
+                        {
+                            "Ref": "Environment"
+                        },
+                        {
+                            "Ref": "ApplicationName"
+                        }
+                    ]
+                ]
+            }
+        },
+        "DatabaseHost": {
+            "Value": {
+                "Fn::GetAtt": [ "Database", "Endpoint.Address" ]
+            }
+        },
+        "DatabasePort": {
+            "Value": {
+                "Fn::GetAtt": [ "Database", "Endpoint.Port" ]
+            }
+        },
+        "CPUAlarmHigh": {
+            "Value": {
+                "Ref": "CPUAlarmHigh"
+            }
+        },
+        "DBParameterGroup": {
+            "Value": {
+                "Ref": "DBParameterGroup"
+            }
+        },
+        "FreeStorageSpace": {
+            "Value": {
+                "Ref": "FreeStorageSpace"
+            }
+        },
+        "HostRecord": {
+            "Value": {
+                "Ref": "HostRecord"
+            }
+        },
+        "ReadIOPSHigh": {
+            "Value": {
+                "Ref": "ReadIOPSHigh"
+            }
+        },
+        "WriteIOPSHigh": {
+            "Value": {
+                "Ref": "WriteIOPSHigh"
+            }
+        },
+        "CPUAlarmHigh": {
+            "Value": {
+                "Ref": "CPUAlarmHigh"
+            }
+        }
+    }
+}
