@@ -1,0 +1,39 @@
+development:
+  adapter: postgresql
+  encoding: unicode
+  database: <%= ENV['DOCKERDB_ENV_POSTGRESQL_DB'] %>
+  pool: 5
+  username: <%= ENV['DOCKERDB_ENV_POSTGRESQL_USER'] %>
+  password: <%= ENV['DOCKERDB_ENV_POSTGRESQL_PASS'] %>
+  host: <%= ENV['DOCKERDB_PORT_5432_TCP_ADDR'] %>
+  port: <%= ENV['DOCKERDB_PORT_5432_TCP_PORT'] %>
+
+test:
+  adapter: postgresql
+  encoding: unicode
+  host: localhost
+  port: 15432
+  database: hartl_test
+  pool: 5
+  username: hartl
+  password:
+
+staging:
+  adapter: postgresql
+  encoding: unicode
+  database: <%= ENV['DB_NAME'] %>
+  pool: 5
+  username: <%= ENV['DB_USERNAME'] %>
+  password: <%= ENV['DB_PASSWORD'] %>
+  host: <%= ENV['DB_HOST'] %>
+  port: <%= ENV['DB_PORT'] %>
+
+production:
+  adapter: postgresql
+  encoding: unicode
+  database: <%= ENV['DB_NAME'] %>
+  pool: 5
+  username: <%= ENV['DB_USERNAME'] %>
+  password: <%= ENV['DB_PASSWORD'] %>
+  host: <%= ENV['DB_HOST'] %>
+  port: <%= ENV['DB_PORT'] %>
