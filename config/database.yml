@@ -15,7 +15,7 @@ test:
   port: 15432
   database: hartl_test
   pool: 5
-  username: hartl
+  username: docker
   password:
 
 staging:
