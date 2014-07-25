@@ -1,4 +1,4 @@
-#Bleacher Report's Docker Quick Start Guide
+##Bleacher Report's Docker Quick Start Guide
 
 Docker, Inc. provides a tremendous amount of [detailed references](http://docs.docker.com/) and a slick [online interactive tutorial](https://www.docker.com/tryit/) to ease Docker's learning curve.  We designed this guide on Docker to complement the official documentation already available, so our engineers may spin up some real use cases and start playing with Docker containers in the shortest amount of time possible.
 
