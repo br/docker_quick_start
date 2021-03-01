@@ -1,9 +1,0 @@
-{
-    "AWSEBDockerrunVersion": "1",
-    "Volumes": [
-        {
-            "HostDirectory": "/var/app/current/log",
-            "ContainerDirectory": "/app/log"
-        }
-    ]
-}
